@@ -21,6 +21,56 @@ double _calculateSliceAngle(int index, int itemCount) {
   return childAngle + angleOffset;
 }
 
+/// Calculates the start angle for a weighted slice at the given index.
+///
+/// Uses cumulative weight distribution to determine slice boundaries.
+double _calculateWeightedSliceAngle(int index, List<FortuneItem> items) {
+  if (items.isEmpty) return 0.0;
+
+  // Calculate total weight
+  final totalWeight = items.fold<double>(0.0, (sum, item) => sum + item.weight);
+
+  if (totalWeight <= 0) return 0.0;
+
+  // Calculate cumulative weight up to the current index
+  double cumulativeWeight = 0.0;
+  for (int i = 0; i < index; i++) {
+    cumulativeWeight += items[i].weight;
+  }
+
+  // Calculate the start angle based on cumulative weight proportion
+  final startAngle = 2 * _math.pi * (cumulativeWeight / totalWeight);
+
+  // Apply the same offset as uniform slices
+  final angleOffset = -(_math.pi / 2);
+  return startAngle + angleOffset;
+}
+
+/// Calculates the angle span for a weighted slice at the given index.
+///
+/// Returns the angle in radians that this slice should occupy.
+double _calculateWeightedSliceSpan(int index, List<FortuneItem> items) {
+  if (items.isEmpty || index >= items.length) return 0.0;
+
+  // Calculate total weight
+  final totalWeight = items.fold<double>(0.0, (sum, item) => sum + item.weight);
+
+  if (totalWeight <= 0) return 0.0;
+
+  // Calculate this slice's weight proportion
+  final sliceWeight = items[index].weight;
+  return 2 * _math.pi * (sliceWeight / totalWeight);
+}
+
+/// Calculates the center angle for a weighted slice at the given index.
+///
+/// This is the angle where the slice's center should be positioned.
+double _calculateWeightedSliceCenterAngle(int index, List<FortuneItem> items) {
+  final startAngle = _calculateWeightedSliceAngle(index, items);
+  final span = _calculateWeightedSliceSpan(index, items);
+  return startAngle + span / 2;
+}
+
 double _calculateAlignmentOffset(Alignment alignment) {
   if (alignment == Alignment.topRight) {
     return _math.pi * 0.25;
@@ -57,6 +107,7 @@ class _WheelData {
   final BoxConstraints constraints;
   final int itemCount;
   final TextDirection textDirection;
+  final List<FortuneItem> items;
 
   late final double smallerSide = getSmallerSide(constraints);
   late final double largerSide = getLargerSide(constraints);
@@ -74,6 +125,7 @@ class _WheelData {
     required this.constraints,
     required this.itemCount,
     required this.textDirection,
+    required this.items,
   });
 }
 
@@ -274,24 +326,31 @@ class FortuneWheel extends HookWidget implements FortuneWidget {
                     constraints: constraints,
                     itemCount: items.length,
                     textDirection: Directionality.of(context),
+                    items: items,
                   );
 
                   final isAnimatingPanFactor =
                       rotateAnimCtrl.isAnimating ? 0 : 1;
-                  final selectedAngle =
-                      -2 * _math.pi * (selectedIndex.value / items.length);
+
+                  // Calculate selected angle based on weighted slice position
+                  final selectedAngle = _calculateWeightedSliceCenterAngle(
+                        selectedIndex.value,
+                        items,
+                      ) *
+                      -1; // Negative to rotate in correct direction
+
                   final panAngle =
                       panState.distance * panFactor * isAnimatingPanFactor;
                   final rotationAngle = _getAngle(rotateAnim.value);
                   final alignmentOffset = _calculateAlignmentOffset(alignment);
                   final totalAngle = selectedAngle + panAngle + rotationAngle;
 
-                  final focusedIndex = _borderCross(
+                  final focusedIndex = _borderCrossWeighted(
                     totalAngle,
                     lastVibratedAngle,
-                    items.length,
+                    items,
                     hapticImpact,
-                    _animateArrow, // _tetikle fonksiyonunu burada geçiriyoruz
+                    _animateArrow,
                   );
                   if (focusedIndex != null) {
                     onFocusItemChanged?.call(focusedIndex % items.length);
@@ -303,7 +362,7 @@ class FortuneWheel extends HookWidget implements FortuneWidget {
                         item: items[i],
                         angle: totalAngle +
                             alignmentOffset +
-                            _calculateSliceAngle(i, items.length),
+                            _calculateWeightedSliceCenterAngle(i, items),
                         offset: wheelData.offset,
                       ),
                   ];
@@ -380,5 +439,65 @@ class FortuneWheel extends HookWidget implements FortuneWidget {
     animateArrow();
     lastVibratedAngle.value = (angleDegrees ~/ step) * step;
     return index;
+  }
+
+  /// * vibrate and animate arrow when cross border for weighted items
+  int? _borderCrossWeighted(
+    double angle,
+    ObjectRef<double> lastVibratedAngle,
+    List<FortuneItem> items,
+    HapticImpact hapticImpact,
+    VoidCallback animateArrow,
+  ) {
+    if (items.isEmpty) return null;
+
+    // Convert angle to degrees and normalize to positive
+    final angleDegrees = (angle * 180 / _math.pi).abs();
+
+    // Calculate total weight
+    final totalWeight =
+        items.fold<double>(0.0, (sum, item) => sum + item.weight);
+    if (totalWeight <= 0) return null;
+
+    // Find which slice the angle falls into
+    double cumulativeWeight = 0.0;
+    for (int i = 0; i < items.length; i++) {
+      final sliceWeight = items[i].weight;
+      final sliceAngle = 360 * (sliceWeight / totalWeight);
+      final sliceStart = 360 * (cumulativeWeight / totalWeight);
+      final sliceEnd = sliceStart + sliceAngle;
+
+      if (angleDegrees >= sliceStart && angleDegrees < sliceEnd) {
+        // Check if we've crossed a border since last time
+        final currentSlice = i;
+        final lastSlice = lastVibratedAngle.value ~/ 360 * items.length;
+
+        if (currentSlice != lastSlice) {
+          final hapticFeedbackFunction;
+          switch (hapticImpact) {
+            case HapticImpact.none:
+              return currentSlice;
+            case HapticImpact.heavy:
+              hapticFeedbackFunction = HapticFeedback.heavyImpact;
+              break;
+            case HapticImpact.medium:
+              hapticFeedbackFunction = HapticFeedback.mediumImpact;
+              break;
+            case HapticImpact.light:
+              hapticFeedbackFunction = HapticFeedback.lightImpact;
+              break;
+          }
+          hapticFeedbackFunction();
+          animateArrow();
+          lastVibratedAngle.value = angleDegrees;
+          return currentSlice;
+        }
+        return null;
+      }
+
+      cumulativeWeight += sliceWeight;
+    }
+
+    return null;
   }
 }

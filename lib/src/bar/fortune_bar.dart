@@ -73,7 +73,7 @@ class FortuneBar extends HookWidget implements FortuneWidget {
   /// Creates a new [FortuneBar] with the given [items], which is centered
   /// on the [selected] value.
   ///
-  /// {@macro flutter_fortune_wheel.FortuneWidget.ctorArgs}.
+  /// {@macro flutter_fortune_widget.FortuneWidget.ctorArgs}.
   ///
   /// See also:
   ///  * [FortuneWheel], which provides an alternative visualization.
@@ -97,6 +97,44 @@ class FortuneBar extends HookWidget implements FortuneWidget {
     PanPhysics? physics,
   })  : physics = physics ?? DirectionalPanPhysics.horizontal(),
         super(key: key);
+
+  /// Calculates the cumulative width up to the given index for weighted items.
+  ///
+  /// Returns the total width that should be occupied by items up to (but not including) the given index.
+  double _calculateCumulativeWidth(
+      int index, List<FortuneItem> items, double totalWidth) {
+    if (items.isEmpty || index <= 0) return 0.0;
+
+    // Calculate total weight
+    final totalWeight =
+        items.fold<double>(0.0, (sum, item) => sum + item.weight);
+    if (totalWeight <= 0) return 0.0;
+
+    // Calculate cumulative weight up to the index
+    double cumulativeWeight = 0.0;
+    for (int i = 0; i < index; i++) {
+      cumulativeWeight += items[i].weight;
+    }
+
+    return totalWidth * (cumulativeWeight / totalWeight);
+  }
+
+  /// Calculates the width for a weighted item at the given index.
+  ///
+  /// Returns the width that this item should occupy based on its weight.
+  double _calculateItemWidth(
+      int index, List<FortuneItem> items, double totalWidth) {
+    if (items.isEmpty || index >= items.length) return 0.0;
+
+    // Calculate total weight
+    final totalWeight =
+        items.fold<double>(0.0, (sum, item) => sum + item.weight);
+    if (totalWeight <= 0) return 0.0;
+
+    // Calculate this item's weight proportion
+    final itemWeight = items[index].weight;
+    return totalWidth * (itemWeight / totalWeight);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -150,8 +188,19 @@ class FortuneBar extends HookWidget implements FortuneWidget {
                 AnimatedBuilder(
                     animation: animation,
                     builder: (context, _) {
+                      // Calculate weighted item position
+                      final totalWeight = items.fold<double>(
+                          0.0, (sum, item) => sum + item.weight);
+                      double cumulativeWeight = 0.0;
+                      for (int i = 0; i < selectedIndex.value; i++) {
+                        cumulativeWeight += items[i].weight;
+                      }
+                      final weightedPosition = totalWeight > 0
+                          ? cumulativeWeight / totalWeight
+                          : 0.0;
                       final itemPosition =
-                          (items.length * rotationCount + selectedIndex.value);
+                          (items.length * rotationCount + weightedPosition);
+
                       final isAnimatingPanFactor =
                           animationCtrl.isAnimating ? 0 : 1;
                       final panFactor = 2 / size.width;

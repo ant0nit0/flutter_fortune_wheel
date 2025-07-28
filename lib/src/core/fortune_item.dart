@@ -12,6 +12,20 @@ class FortuneItem implements GestureHandler {
   /// A widget to be rendered within this item.
   final Widget child;
 
+  /// The weight of this item for weighted random selection.
+  ///
+  /// Higher weights increase the probability of this item being selected.
+  /// Must be greater than 0. Defaults to 1.0 (equal probability).
+  ///
+  /// Example:
+  /// ```dart
+  /// FortuneItem(
+  ///   child: Text('Rare Prize'),
+  ///   weight: 0.5, // 50% less likely than default
+  /// )
+  /// ```
+  final double weight;
+
   @override
   final GestureTapCallback? onDoubleTap;
 
@@ -153,6 +167,7 @@ class FortuneItem implements GestureHandler {
   const FortuneItem({
     this.style,
     required this.child,
+    this.weight = 1.0,
     this.onTap,
     this.onTapUp,
     this.onDoubleTap,
@@ -199,14 +214,17 @@ class FortuneItem implements GestureHandler {
     this.onVerticalDragEnd,
     this.onVerticalDragStart,
     this.onVerticalDragUpdate,
-  });
+  }) : assert(weight > 0, 'Weight must be greater than 0');
 
   @override
-  int get hashCode => hash2(child, style);
+  int get hashCode => hash3(child, style, weight);
 
   @override
   bool operator ==(Object other) {
-    return other is FortuneItem && style == other.style && child == other.child;
+    return other is FortuneItem &&
+        style == other.style &&
+        child == other.child &&
+        weight == other.weight;
   }
 }
 
@@ -225,6 +243,9 @@ class TransformedFortuneItem implements FortuneItem {
   Widget get child => _item.child;
 
   FortuneItemStyle? get style => _item.style;
+
+  @override
+  double get weight => _item.weight;
 
   @override
   GestureTapCallback? get onDoubleTap => _item.onDoubleTap;
