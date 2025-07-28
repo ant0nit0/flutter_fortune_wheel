@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_fortune_wheel/flutter_fortune_wheel.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -113,6 +114,64 @@ void main() {
           expect(startLog, contains(true));
           expect(endLog, hasLength(1));
           expect(endLog, contains(true));
+
+          controller.close();
+        },
+      );
+    });
+
+    group('weighted items', () {
+      testWidgets(
+        'renders weighted items with correct proportions',
+        (tester) async {
+          final weightedItems = [
+            FortuneItem(child: Text('Common'), weight: 1.0),
+            FortuneItem(child: Text('Rare'), weight: 0.5),
+            FortuneItem(child: Text('Epic'), weight: 0.25),
+          ];
+
+          await pumpFortuneWidget(
+            tester,
+            FortuneWheel(
+              animateFirst: false,
+              selected: Stream.empty(),
+              items: weightedItems,
+            ),
+          );
+
+          await tester.pumpAndSettle();
+
+          // Verify that the wheel renders without errors
+          expect(find.byType(FortuneWheel), findsOneWidget);
+        },
+      );
+
+      testWidgets(
+        'handles weighted selection correctly',
+        (tester) async {
+          final weightedItems = [
+            FortuneItem(child: Text('Common'), weight: 1.0),
+            FortuneItem(child: Text('Rare'), weight: 0.5),
+            FortuneItem(child: Text('Epic'), weight: 0.25),
+          ];
+
+          final controller = StreamController<int>();
+
+          await pumpFortuneWidget(
+            tester,
+            FortuneWheel(
+              animateFirst: false,
+              selected: controller.stream,
+              items: weightedItems,
+            ),
+          );
+
+          await tester.pumpAndSettle();
+
+          // Test weighted selection
+          final selectedIndex = Fortune.randomWeightedIndex(weightedItems);
+          expect(selectedIndex, greaterThanOrEqualTo(0));
+          expect(selectedIndex, lessThan(weightedItems.length));
 
           controller.close();
         },

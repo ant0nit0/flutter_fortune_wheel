@@ -362,7 +362,7 @@ class FortuneWheel extends HookWidget implements FortuneWidget {
                         item: items[i],
                         angle: totalAngle +
                             alignmentOffset +
-                            _calculateWeightedSliceCenterAngle(i, items),
+                            _calculateWeightedSliceAngle(i, items),
                         offset: wheelData.offset,
                       ),
                   ];

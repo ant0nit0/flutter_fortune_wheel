@@ -20,6 +20,9 @@ class _TransformedCircleSlice extends StatelessWidget {
     final style = item.style ??
         styleStrategy.getItemStyle(theme, index, wheelData.itemCount);
 
+    // Use weighted slice span for the angle
+    final sliceAngle = _calculateWeightedSliceSpan(index, wheelData.items);
+
     return _CircleSliceLayout(
       handler: item,
       child: DefaultTextStyle(
@@ -29,7 +32,7 @@ class _TransformedCircleSlice extends StatelessWidget {
       ),
       slice: _CircleSlice(
         radius: wheelData.radius,
-        angle: wheelData.itemAngle,
+        angle: sliceAngle,
         fillColor: style.color,
         strokeColor: style.borderColor,
         strokeWidth: style.borderWidth,
